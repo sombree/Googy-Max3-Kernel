@@ -3,7 +3,7 @@ export KERNELDIR=`readlink -f .`
 export RAMFS_SOURCE="/root/Ramdisks/GT-I9505-TW"
 export PARENT_DIR=`readlink -f ..`
 export USE_SEC_FIPS_MODE=true
-export CROSS_COMPILE=/Kernel_Folder/Toolchain_4.9.3-2015.02_a15/bin/arm-cortex_a15-linux-gnueabihf-
+export CROSS_COMPILE=/Kernel_Folder/Toolchain_4.9.3-2015.03_a15/bin/arm-cortex_a15-linux-gnueabihf-
 
 # if [ "${1}" != "" ];then
 #  export KERNELDIR=`readlink -f ${1}`
@@ -11,7 +11,7 @@ export CROSS_COMPILE=/Kernel_Folder/Toolchain_4.9.3-2015.02_a15/bin/arm-cortex_a
 
 RAMFS_TMP="/root/Ramdisks/GT-I9505/tmp_tw/ramfs"
 
-VER="\"-Hulk-Kernel_TW-V1$1\""
+VER="\"-Hulk-Kernel_TW-V1.0.1$1\""
 cp -f /root/Hulk-Kernel/arch/arm/configs/0hulk_TW_defconfig /root/Hulk-Kernel/0hulk_TW_defconfig
 sed "s#^CONFIG_LOCALVERSION=.*#CONFIG_LOCALVERSION=$VER#" /root/Hulk-Kernel/0hulk_TW_defconfig > /root/Hulk-Kernel/arch/arm/configs/0hulk_TW_defconfig
 
