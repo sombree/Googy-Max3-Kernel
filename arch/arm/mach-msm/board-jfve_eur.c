@@ -148,6 +148,10 @@
 #include <mach/fusion3-thermistor.h>
 #endif
 
+#ifdef CONFIG_KEXEC_HARDBOOT
+#include <asm/kexec.h>
+#endif
+
 #if defined(CONFIG_SENSORS_SSP)
 enum {
 	SNS_PWR_OFF,
@@ -209,6 +213,10 @@ static void sensor_power_on_vdd(int, int);
 #define PCIE_WAKE_N_PMIC_GPIO 12
 #define PCIE_PWR_EN_PMIC_GPIO 13
 #define PCIE_RST_N_PMIC_MPP 1
+
+#ifdef CONFIG_CPU_FREQ_GOV_INTELLIDEMAND  
+int id_set_two_phase_freq(int cpufreq); 
+#endif
 
 static int sec_tsp_synaptics_mode;
 static int lcd_tsp_panel_version;
@@ -1007,7 +1015,15 @@ static struct platform_device ram_console_device = {
 static struct persistent_ram_descriptor per_ram_descs[] __initdata = {
        {
                .name = "ram_console",
+#ifdef CONFIG_KEXEC_HARDBOOT
+               .size = KEXEC_HB_PAGE_ADDR - RAMCONSOLE_PHYS_ADDR,
+       },
+       {
+               .name = "kexec_hb_page",
+               .size = SZ_1M - (KEXEC_HB_PAGE_ADDR - RAMCONSOLE_PHYS_ADDR),
+#else
                .size = SZ_1M,
+#endif
        }
 };
 
@@ -3139,10 +3155,21 @@ static struct platform_device msm_tsens_device = {
 static struct msm_thermal_data msm_thermal_pdata = {
 	.sensor_id = 7,
 	.poll_ms = 250,
+#ifdef CONFIG_CPU_OVERCLOCK
+    .limit_temp_degC = 80,
+#else
 	.limit_temp_degC = 60,
+#endif
 	.temp_hysteresis_degC = 10,
 	.freq_step = 2,
+#ifdef CONFIG_INTELLI_THERMAL
+    .freq_control_mask = 0xf,
+#endif
+#ifdef CONFIG_CPU_OVERCLOCK
+    .core_limit_temp_degC = 90,
+#else
 	.core_limit_temp_degC = 80,
+#endif
 	.core_temp_hysteresis_degC = 10,
 	.core_control_mask = 0xe,
 };
@@ -5440,6 +5467,9 @@ static void __init samsung_jf_init(void)
 	clear_ssp_gpio();
 	sensor_power_on_vdd(SNS_PWR_ON, SNS_PWR_ON);
 	initialize_ssp_gpio();
+#endif
+#ifdef CONFIG_CPU_FREQ_GOV_INTELLIDEMAND
+    id_set_two_phase_freq(1566000);
 #endif
 #ifdef CONFIG_MACH_JF
 	platform_device_register(&gpio_kp_pdev);
