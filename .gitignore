@@ -121,3 +121,4 @@ GTAGS
 /arch/arm/boot/compressed/ashldi3.S
 /arch/arm/boot/compressed/lib1funcs.S
 /arch/arm/boot/compressed/vmlinux.lds
+/modules/*

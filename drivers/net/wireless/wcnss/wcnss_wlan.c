@@ -23,7 +23,6 @@
 #include <linux/workqueue.h>
 #include <linux/jiffies.h>
 #include <linux/gpio.h>
-#include <mach/msm_iomap.h>
 #include <linux/wakelock.h>
 #include <linux/delay.h>
 #include <linux/of.h>
@@ -41,13 +40,6 @@
 #include <mach/subsystem_notif.h>
 #ifdef CONFIG_WCNSS_MEM_PRE_ALLOC
 #include "wcnss_prealloc.h"
-#endif
-#if defined(CONFIG_MACH_MELIUS_SKT) || defined(CONFIG_MACH_MELIUS_KTT) || \
-	defined(CONFIG_MACH_MELIUS_LGT)
-#if !defined(CONFIG_RADIO_IRIS) && defined(CONFIG_IR_REMOCON_FPGA)
-/* workaround about conflict with qualcomm FM radio gpio */
-#include <mach/msm8930-gpio.h>
-#endif
 #endif
 
 #define DEVICE "wcnss_wlan"
@@ -516,17 +508,6 @@ static void wcnss_post_bootup(struct work_struct *work)
 	/* Since Riva is up, cancel any APPS vote for Iris & Riva VREGs  */
 	wcnss_wlan_power(&penv->pdev->dev, &penv->wlan_config,
 		WCNSS_WLAN_SWITCH_OFF);
-
-#if defined(CONFIG_MACH_MELIUS_SKT) || defined(CONFIG_MACH_MELIUS_KTT) || \
-	defined(CONFIG_MACH_MELIUS_LGT)
-#if !defined(CONFIG_RADIO_IRIS) && defined(CONFIG_IR_REMOCON_FPGA)
-	/* workaround about conflict with qualcomm FM radio gpio */
-	gpio_tlmm_config(GPIO_CFG(GPIO_IRDA_SDA, 0,
-		GPIO_CFG_INPUT, GPIO_CFG_NO_PULL, GPIO_CFG_8MA), 1);
-	gpio_tlmm_config(GPIO_CFG(GPIO_IRDA_SCL, 0,
-		GPIO_CFG_INPUT,	GPIO_CFG_NO_PULL, GPIO_CFG_8MA), 1);
-#endif
-#endif
 }
 
 static int
@@ -557,7 +538,7 @@ fail:
 static int __devinit
 wcnss_wlan_ctrl_probe(struct platform_device *pdev)
 {
-	if (!penv)
+	if (!penv || !penv->triggered)
 		return -ENODEV;
 
 	penv->smd_channel_ready = 1;
@@ -612,7 +593,7 @@ wcnss_ctrl_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 
-	if (!penv)
+	if (!penv || !penv->triggered)
 		return -ENODEV;
 
 	ret = smd_named_open_on_edge(WCNSS_CTRL_CHANNEL, SMD_APPS_WCNSS,
@@ -1087,7 +1068,7 @@ static void wcnssctrl_rx_handler(struct work_struct *worker)
 		smd_read(penv->smd_ch, NULL, len);
 		return;
 	}
-	if (len <= 0)
+	if (len < sizeof(struct smd_msg_hdr))
 		return;
 
 	rc = smd_read(penv->smd_ch, buf, sizeof(struct smd_msg_hdr));
@@ -1539,15 +1520,6 @@ wcnss_trigger_config(struct platform_device *pdev)
 		goto fail_power;
 	}
 
-	/* trigger initialization of the WCNSS */
-	penv->pil = pil_get(WCNSS_PIL_DEVICE);
-	if (IS_ERR(penv->pil)) {
-		dev_err(&pdev->dev, "Peripheral Loader failed on WCNSS.\n");
-		ret = PTR_ERR(penv->pil);
-		penv->pil = NULL;
-		goto fail_pil;
-	}
-
 	/* allocate resources */
 	penv->mmio_res = platform_get_resource_byname(pdev, IORESOURCE_MEM,
 							"wcnss_mmio");
@@ -1574,15 +1546,25 @@ wcnss_trigger_config(struct platform_device *pdev)
 		goto fail_wake;
 	}
 
+	/* trigger initialization of the WCNSS */
+	penv->pil = pil_get(WCNSS_PIL_DEVICE);
+	if (IS_ERR(penv->pil)) {
+		dev_err(&pdev->dev, "Peripheral Loader failed on WCNSS.\n");
+		ret = PTR_ERR(penv->pil);
+		penv->pil = NULL;
+		goto fail_pil;
+	}
+
 	return 0;
+
+fail_pil:
+	if (penv->msm_wcnss_base)
+               iounmap(penv->msm_wcnss_base);
 
 fail_wake:
 	wake_lock_destroy(&penv->wcnss_wake_lock);
 
 fail_res:
-	if (penv->pil)
-		pil_put(penv->pil);
-fail_pil:
 	wcnss_wlan_power(&pdev->dev, &penv->wlan_config,
 				WCNSS_WLAN_SWITCH_OFF);
 fail_power:
@@ -1711,6 +1693,7 @@ exit:
 	return rc;
 }
 
+
 static int wcnss_notif_cb(struct notifier_block *this, unsigned long code,
 				void *ss_handle)
 {
@@ -1727,6 +1710,7 @@ static int wcnss_notif_cb(struct notifier_block *this, unsigned long code,
 static struct notifier_block wnb = {
 	.notifier_call = wcnss_notif_cb,
 };
+
 
 static const struct file_operations wcnss_node_fops = {
 	.owner = THIS_MODULE,
@@ -1853,13 +1837,6 @@ static void __exit wcnss_wlan_exit(void)
 	wcnss_prealloc_deinit();
 #endif
 }
-
-static unsigned char prealloc_mac_mem[32*1024];
-void* wcnss_get_prealloc_mac_context(void)
-{
-	return prealloc_mac_mem;
-}
-EXPORT_SYMBOL(wcnss_get_prealloc_mac_context);
 
 module_init(wcnss_wlan_init);
 module_exit(wcnss_wlan_exit);
