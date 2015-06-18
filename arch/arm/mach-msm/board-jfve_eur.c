@@ -216,7 +216,7 @@ static void sensor_power_on_vdd(int, int);
 
 #ifdef CONFIG_CPU_FREQ_GOV_INTELLIDEMAND  
 int id_set_two_phase_freq(int cpufreq); 
-#endif
+#endif 
 
 static int sec_tsp_synaptics_mode;
 static int lcd_tsp_panel_version;
